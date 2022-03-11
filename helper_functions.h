@@ -82,7 +82,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	}
 
 	if(num_input_strings == 3){
-		parsed_commands[2][strcspn(parsed_commands[2], "\n")] = 0;
+		parsed_commands[2][strcspn(parsed_commands[2], "\n")] = '\t';
 	}
 
 	// user did not enter in 3 distinct commands
@@ -100,7 +100,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	}
 
 	// user entered in incorrect HTTP version
-	if(strcmp(parsed_commands[2], "HTTP/1.0") != 0 && strcmp(parsed_commands[2], "HTTP/1.1") != 0){
+	if(strcmp(parsed_commands[2], "HTTP/1.0\t") != 0 && strcmp(parsed_commands[2], "HTTP/1.1\t") != 0){
 		bzero(status, STATUS_SIZE);
 		strcpy(status, "505 HTTP Version Not Supported\r\n");
 		return -1;		

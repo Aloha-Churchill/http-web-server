@@ -2,7 +2,6 @@
 ** server.c -- a stream socket server demo
 ** code inspired from Beej's guide to socket programming
 
-
 QUESTION: does client need to exit after
 */
 
@@ -86,7 +85,7 @@ int main(void)
 	printf("server: waiting for connections...\n");
 
 	while(1) {  // main accept() loop
-	
+
 		//accept command - client calls connect() to your machine on port you are listening on
 		// their connection goes into queue and waits for acceptance
 		// accept gets pending connection and returns new file descriptor to use for this connection
@@ -156,6 +155,7 @@ int main(void)
 					// just send header content
 					strcat(content_length, "\r\n");
 					strcat(content_type, "\r\n\r\n");
+					send_all(new_fd, parsed_commands[2], 9);
 					send_all(new_fd, status, STATUS_SIZE);
 					send_all(new_fd, content_length, STATUS_SIZE);
 					send_all(new_fd, content_type, STATUS_SIZE);
@@ -164,6 +164,7 @@ int main(void)
 				else{
 					// sending file header
 					int file_length = get_file_header_info(pathname, content_length, content_type);
+					send_all(new_fd, parsed_commands[2], 9);
 					send_all(new_fd, status, STATUS_SIZE);
 					send_all(new_fd, content_length, STATUS_SIZE);
 					send_all(new_fd, content_type, STATUS_SIZE);
