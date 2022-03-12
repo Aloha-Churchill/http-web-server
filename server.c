@@ -131,7 +131,7 @@ int main(void)
 			bzero(content_type, STATUS_SIZE);
 			strcpy(content_type, "Content-Type: ");
 
-			char* parsed_commands[3];
+			char* parsed_commands[4]; // [[method],[url],[http version], [connection]]
 
 			int input_valid = parse_commands(recvbuf, parsed_commands, status);
 
@@ -163,6 +163,7 @@ int main(void)
 				}
 				else{
 					// sending file header
+					// add in keep alive logic
 					int file_length = get_file_header_info(pathname, content_length, content_type);
 					send_all(new_fd, parsed_commands[2], 9);
 					send_all(new_fd, status, STATUS_SIZE);

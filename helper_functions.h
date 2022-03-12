@@ -19,8 +19,8 @@
 #define BACKLOG 10	 			// how many pending connections queue will hold
 #define REQUEST_SIZE 1024
 #define HEADER_SIZE 4000
-#define STATUS_SIZE 50
-#define COMMAND_LINE_SIZE 100
+#define STATUS_SIZE 500
+#define COMMAND_LINE_SIZE 1000
 #define FILE_SIZE_PART 1024
 
 
@@ -83,7 +83,10 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 		if(num_input_strings < 3){
 			parsed_commands[num_input_strings] = element;
 		}
-		printf("pc: %s\n", element);
+		if(num_input_strings == 6){
+			parsed_commands[3] = element;
+		}
+		printf("%d pc: %s\n", num_input_strings, element);
 		element = strtok(NULL, delimiters);
 		num_input_strings += 1;
 	}
@@ -96,6 +99,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	printf("METHOD: %s\n", parsed_commands[0]);
 	printf("URL: %s\n", parsed_commands[1]);
 	printf("VERSION: %s\n", parsed_commands[2]);
+	printf("KEEP ALIVE?: %s\n", parsed_commands[3]);
 	
 	printf("NUM_INPUT_STRINGS %d\n", num_input_strings);
 
@@ -224,5 +228,9 @@ int get_file_header_info(char* pathname, char* content_length, char* content_typ
 	}
 	
 	return file_length;
+}
+
+int keep_alive_true(char* keep_alive_status){
+	return 0;
 }
 
