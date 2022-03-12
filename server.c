@@ -121,7 +121,7 @@ int main(void)
 			// default content for header
 			char status[STATUS_SIZE];
 			bzero(status, STATUS_SIZE);
-			strcpy(status, "200 OK\r\n");
+			strcpy(status, "\n200 OK\r\n");
 
 			char content_length[STATUS_SIZE];
 			bzero(content_length, STATUS_SIZE);

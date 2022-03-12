@@ -96,6 +96,8 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	printf("METHOD: %s\n", parsed_commands[0]);
 	printf("URL: %s\n", parsed_commands[1]);
 	printf("VERSION: %s\n", parsed_commands[2]);
+	
+	printf("NUM_INPUT_STRINGS %d\n", num_input_strings);
 
 	if(num_input_strings >= 3){
 		// test using valgrind
@@ -110,7 +112,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	}
 
 	// user did not enter in 3 distinct commands
-	if(num_input_strings <= 3){
+	if(num_input_strings < 3){
 		bzero(status, STATUS_SIZE);
 		strcpy(status, "\n400 Bad Request\r\n");
 		return -1;
