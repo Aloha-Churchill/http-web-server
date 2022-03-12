@@ -67,42 +67,66 @@ void *get_in_addr(struct sockaddr *sa)
 
 int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	//strtok replaces delimiter with null terminator then continues to search for next string
-	char* element = strtok(recvbuf, " ");
+	const char delimiters[] = " \r\n";
+	char* element = strtok(recvbuf, delimiters);
 
 	if(element == NULL){
-		error("Could not parse entered command\n");
+		// THIS SHOULD NOT TACTUALLY BE ERROR, SHOULD JUST BE CANNOT PARSE
+		bzero(status, STATUS_SIZE);
+		strcpy(status, "\n400 Bad Request\r\n");
+		return -1;
 	}
 
 	int num_input_strings = 0;
 
 	while(element != NULL){
-		parsed_commands[num_input_strings] = element;
-		element = strtok(NULL, " ");
+		if(num_input_strings < 3){
+			parsed_commands[num_input_strings] = element;
+		}
+		printf("pc: %s\n", element);
+		element = strtok(NULL, delimiters);
 		num_input_strings += 1;
 	}
 
-	if(num_input_strings == 3){
-		parsed_commands[2][strcspn(parsed_commands[2], "\n")] = '\t';
+
+
+	char http_version_buf[9];
+	bzero(http_version_buf, 9);
+
+	printf("METHOD: %s\n", parsed_commands[0]);
+	printf("URL: %s\n", parsed_commands[1]);
+	printf("VERSION: %s\n", parsed_commands[2]);
+
+	if(num_input_strings >= 3){
+		// test using valgrind
+		if(strlen(parsed_commands[2]) < 8){
+			bzero(status, STATUS_SIZE);
+			strcpy(status, "\n400 Bad Request\r\n");
+			return -1;
+		}
+
+		strncpy(http_version_buf, parsed_commands[2], 8);
+
 	}
 
 	// user did not enter in 3 distinct commands
-	if(num_input_strings != 3){
+	if(num_input_strings <= 3){
 		bzero(status, STATUS_SIZE);
-		strcpy(status, "400 Bad Request\r\n");
+		strcpy(status, "\n400 Bad Request\r\n");
 		return -1;
 	}
 
 	// user used method other than GET
 	if(strcmp(parsed_commands[0], "GET") != 0){
 		bzero(status, STATUS_SIZE);
-		strcpy(status, "405 Method Not Allowed\r\n");
+		strcpy(status, "\n405 Method Not Allowed\r\n");
 		return -1;
 	}
 
 	// user entered in incorrect HTTP version
-	if(strcmp(parsed_commands[2], "HTTP/1.0\t") != 0 && strcmp(parsed_commands[2], "HTTP/1.1\t") != 0){
+	if(strncmp(http_version_buf, "HTTP/1.0", 8) != 0 && strncmp(http_version_buf, "HTTP/1.1", 8) != 0){ //strcmp(parsed_commands[2], "HTTP/1.0\t") != 0 && strcmp(parsed_commands[2], "HTTP/1.1\t") != 0
 		bzero(status, STATUS_SIZE);
-		strcpy(status, "505 HTTP Version Not Supported\r\n");
+		strcpy(status, "\n505 HTTP Version Not Supported\r\n");
 		return -1;		
 	}
 
@@ -137,12 +161,12 @@ int get_error_status_file(char* pathname, char* status){
 	if(fp == NULL){
 		if(errno == 13){
 			bzero(status, STATUS_SIZE);
-			strcpy(status, "403 Forbidden\r\n");
+			strcpy(status, "\n403 Forbidden\r\n");
 			return -1;
 		}
 		if(errno == 2){
 			bzero(status, STATUS_SIZE);
-			strcpy(status, "404 Not Found\r\n");
+			strcpy(status, "\n404 Not Found\r\n");
 			return -1;
 		}
 		else{
