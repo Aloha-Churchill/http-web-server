@@ -119,9 +119,10 @@ int main(void)
 			printf("SERVER RECIEVED: %s\n", recvbuf);
 
 			// default content for header
+			
 			char status[STATUS_SIZE];
 			bzero(status, STATUS_SIZE);
-			strcpy(status, "\n200 OK\r\n");
+			strcpy(status, " 200 OK\r\n");
 
 			char content_length[STATUS_SIZE];
 			bzero(content_length, STATUS_SIZE);
@@ -131,17 +132,17 @@ int main(void)
 			bzero(content_type, STATUS_SIZE);
 			strcpy(content_type, "Content-Type: ");
 
-			char* parsed_commands[4]; // [[method],[url],[http version], [connection]]
+			char* parsed_commands[3]; // [[method],[url],[http version], [connection]]
 
 			int input_valid = parse_commands(recvbuf, parsed_commands, status);
 
 			if(input_valid == -1){
 				// send http stuff immediately and exit
-				strcat(content_length, "\r\n");
-				strcat(content_type, "\r\n\r\n");
+				strcat(content_type, "\r\n");
+				strcat(content_length, "\r\n\r\n");
 				send_all(new_fd, status, STATUS_SIZE);
-				send_all(new_fd, content_length, STATUS_SIZE);
 				send_all(new_fd, content_type, STATUS_SIZE);
+				send_all(new_fd, content_length, STATUS_SIZE);
 			}
 			else{
 				char pathname[COMMAND_LINE_SIZE];
@@ -153,28 +154,26 @@ int main(void)
 
 				if(file_valid == -1){
 					// just send header content
-					strcat(content_length, "\r\n");
-					strcat(content_type, "\r\n\r\n");
+					strcat(content_type, "\r\n");
+					strcat(content_length, "\r\n\r\n");
 					send_all(new_fd, parsed_commands[2], 9);
 					send_all(new_fd, status, STATUS_SIZE);
-					send_all(new_fd, content_length, STATUS_SIZE);
 					send_all(new_fd, content_type, STATUS_SIZE);
-
+					send_all(new_fd, content_length, STATUS_SIZE);
 				}
 				else{
 					// sending file header
 					// add in keep alive logic
-					int file_length = get_file_header_info(pathname, content_length, content_type);
+					int file_length = get_file_header_info(pathname, content_length, content_type, parsed_commands[1], status);
 					send_all(new_fd, parsed_commands[2], 9);
 					send_all(new_fd, status, STATUS_SIZE);
-					send_all(new_fd, content_length, STATUS_SIZE);
 					send_all(new_fd, content_type, STATUS_SIZE);
-
+					send_all(new_fd, content_length, STATUS_SIZE);
+					
 					// send file content
 					int num_sends = file_length/FILE_SIZE_PART  + ((file_length % FILE_SIZE_PART) != 0); //taking the ceiling of this
 					char file_contents[FILE_SIZE_PART];
 					
-
 					FILE* fp = fopen(pathname, "r");
 					for(int i=0; i < num_sends; i++){
 						bzero(file_contents, FILE_SIZE_PART);
@@ -182,7 +181,13 @@ int main(void)
 						if(n < 0){
 							error("Error on reading file into buffer\n");
 						}
-						send_all(new_fd, file_contents, FILE_SIZE_PART);
+						if(i == num_sends-1){
+							send_all(new_fd, file_contents, file_length % FILE_SIZE_PART);
+						}
+						else{
+							send_all(new_fd, file_contents, FILE_SIZE_PART);
+						}
+						
 					
 					}
 					fclose(fp);

@@ -73,7 +73,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	if(element == NULL){
 		// THIS SHOULD NOT TACTUALLY BE ERROR, SHOULD JUST BE CANNOT PARSE
 		bzero(status, STATUS_SIZE);
-		strcpy(status, "\n400 Bad Request\r\n");
+		strcpy(status, " 400 Bad Request\r\n");
 		return -1;
 	}
 
@@ -83,9 +83,11 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 		if(num_input_strings < 3){
 			parsed_commands[num_input_strings] = element;
 		}
+		/*
 		if(num_input_strings == 6){
 			parsed_commands[3] = element;
 		}
+		*/
 		printf("%d pc: %s\n", num_input_strings, element);
 		element = strtok(NULL, delimiters);
 		num_input_strings += 1;
@@ -99,7 +101,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	printf("METHOD: %s\n", parsed_commands[0]);
 	printf("URL: %s\n", parsed_commands[1]);
 	printf("VERSION: %s\n", parsed_commands[2]);
-	printf("KEEP ALIVE?: %s\n", parsed_commands[3]);
+	//printf("KEEP ALIVE?: %s\n", parsed_commands[3]);
 	
 	printf("NUM_INPUT_STRINGS %d\n", num_input_strings);
 
@@ -107,7 +109,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 		// test using valgrind
 		if(strlen(parsed_commands[2]) < 8){
 			bzero(status, STATUS_SIZE);
-			strcpy(status, "\n400 Bad Request\r\n");
+			strcpy(status, " 400 Bad Request\r\n");
 			return -1;
 		}
 
@@ -118,21 +120,21 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 	// user did not enter in 3 distinct commands
 	if(num_input_strings < 3){
 		bzero(status, STATUS_SIZE);
-		strcpy(status, "\n400 Bad Request\r\n");
+		strcpy(status, " 400 Bad Request\r\n");
 		return -1;
 	}
 
 	// user used method other than GET
 	if(strcmp(parsed_commands[0], "GET") != 0){
 		bzero(status, STATUS_SIZE);
-		strcpy(status, "\n405 Method Not Allowed\r\n");
+		strcpy(status, " 405 Method Not Allowed\r\n");
 		return -1;
 	}
 
 	// user entered in incorrect HTTP version
 	if(strncmp(http_version_buf, "HTTP/1.0", 8) != 0 && strncmp(http_version_buf, "HTTP/1.1", 8) != 0){ //strcmp(parsed_commands[2], "HTTP/1.0\t") != 0 && strcmp(parsed_commands[2], "HTTP/1.1\t") != 0
 		bzero(status, STATUS_SIZE);
-		strcpy(status, "\n505 HTTP Version Not Supported\r\n");
+		strcpy(status, " 505 HTTP Version Not Supported\r\n");
 		return -1;		
 	}
 
@@ -167,12 +169,12 @@ int get_error_status_file(char* pathname, char* status){
 	if(fp == NULL){
 		if(errno == 13){
 			bzero(status, STATUS_SIZE);
-			strcpy(status, "\n403 Forbidden\r\n");
+			strcpy(status, " 403 Forbidden\r\n");
 			return -1;
 		}
 		if(errno == 2){
 			bzero(status, STATUS_SIZE);
-			strcpy(status, "\n404 Not Found\r\n");
+			strcpy(status, " 404 Not Found\r\n");
 			return -1;
 		}
 		else{
@@ -184,7 +186,23 @@ int get_error_status_file(char* pathname, char* status){
 	return 0;
 }
 
-int get_file_header_info(char* pathname, char* content_length, char* content_type){
+// code from stackoverflow
+char *strrev(char *str)
+{
+      char *p1, *p2;
+
+      if (! str || ! *str)
+            return str;
+      for (p1 = str, p2 = str + strlen(str) - 1; p2 > p1; ++p1, --p2)
+      {
+            *p1 ^= *p2;
+            *p2 ^= *p1;
+            *p1 ^= *p2;
+      }
+      return str;
+}
+
+int get_file_header_info(char* pathname, char* content_length, char* content_type, char* url, char* status){
 	// get file length
 	int file_length;
 	FILE* fp = fopen(pathname, "r");
@@ -198,39 +216,54 @@ int get_file_header_info(char* pathname, char* content_length, char* content_typ
 	sprintf(number_string, "%d", file_length);
 
 	strcat(content_length, number_string);
-	strcat(content_length, "\r\n");
+	strcat(content_length, "\r\n\r\n");
 
-	// get file type
-	char command[COMMAND_LINE_SIZE];
-	bzero(command, COMMAND_LINE_SIZE);
+	const char delimiters[] = ".";
+	char* element = strtok(strrev(url), delimiters);
+	element = strrev(element);
+	printf("CONTENT TYPE IS: %s\n", element);
 
-	strcpy(command, "file -b ");
-	strcat(command, pathname);
-
-	FILE* content_fp = popen(command, "r");
-
-	if(content_fp == NULL){
-		error("Could not get file content type\n");
+	if(element == NULL){
+		error("Not a valid file format\n");
+	}
+	else{
+		if(strcmp(element, "html") == 0){
+			strcpy(content_type, "Content-Type: text/html\r\n");
+		}
+		else if(strcmp(element, "txt") == 0){
+			strcpy(content_type, "Content-Type: text/plain\r\n");	
+		}
+		else if(strcmp(element, "png") == 0){
+			strcpy(content_type, "Content-Type: image/png\r\n");
+		}
+		else if(strcmp(element, "gif") == 0){
+			strcpy(content_type, "Content-Type: image/gif\r\n");
+		}
+		else if(strcmp(element, "jpg") == 0){
+			strcpy(content_type, "Content-Type: image/jpg\r\n");
+		}
+		else if(strcmp(element, "css") == 0){
+			strcpy(content_type, "Content-Type: text/css\r\n");
+		}
+		else if(strcmp(element, "js") == 0){
+			strcpy(content_type, "Content-Type: application/javascript\r\n");
+		}
+		else{
+			error("Not a valid file format\n");
+		}
+		
 	}
 
-	char content_buf[COMMAND_LINE_SIZE];
-	bzero(content_buf, COMMAND_LINE_SIZE);
 
-	if(fgets(content_buf, STATUS_SIZE, content_fp) == NULL){
-		error("Could not read file content type\n");
-	}
 
-	strcat(content_type, content_buf);
-	strcat(content_type, "\r\n\r\n");
 
-	if(pclose(content_fp) == -1){
-		error("pclose failed\n");
-	}
-	
 	return file_length;
+
 }
 
+/*
 int keep_alive_true(char* keep_alive_status){
 	return 0;
 }
+*/
 

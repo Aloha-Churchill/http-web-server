@@ -1,3 +1,4 @@
 bin/
 .vscode
 server
+www/forbiddenfile.txt
