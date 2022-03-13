@@ -1,207 +1,130 @@
 /*
-** server.c -- a stream socket server demo
-** code inspired from Beej's guide to socket programming
-
-QUESTION: does client need to exit after
+Simple HTTP server implemented with fork()
 */
 
-#include "helper_functions.h"
+#include "helpers.h"
+
+/*
+Function to send HTTP response to client.
+*/
+void handle_client(int fd) {
+    char recvbuf[REQUEST_SIZE];
+    bzero(recvbuf, REQUEST_SIZE);
+
+    //recv returns -1 on error, 0 if closed connection, or number of bytes read into buffer
+    if(recv(fd, recvbuf, REQUEST_SIZE, 0) < 0){
+        error("Recieve failed\n");
+    }
+
+    // parse request into 3 parts [[method],[url],[http version]]
+    char* parsed_commands[3];
+    int num_parsed = parse_commands(recvbuf, parsed_commands);
+
+    // get full pathname of file
+    char pathname[PATHNAME_SIZE];
+    bzero(pathname, PATHNAME_SIZE);
+
+    // check if request is okay, if so, then we check if file is valid
+    if(check_request(fd, parsed_commands, num_parsed) != -1){
+
+        //create full path name
+        strcpy(pathname, "www");
+        strcat(pathname, parsed_commands[1]);
+
+        // check if file is valid, if so, then we send the file
+        if(check_file(fd, pathname, parsed_commands[2]) != -1){
+            send_file(fd, pathname, parsed_commands[2]);
+        }  
+    }
+
+}
 
 
-int main(void)
-{
-	int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
-	struct addrinfo hints, *servinfo, *p;
-	struct sockaddr_storage their_addr; // connector's address information
-	socklen_t sin_size;
-	struct sigaction sa;
-	int yes=1;
-	char s[INET6_ADDRSTRLEN];
-	int rv;
+/*
+Function to initialize variables, start server, and accept client connections
+Code modified from Beej's Guide to Network Programming
+*/
+void start_server(int *server_socket, int port) {
 
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC; //can either be IPv4 or IPv6
-	hints.ai_socktype = SOCK_STREAM; //TCP
-	hints.ai_flags = AI_PASSIVE; // use my IP
+    // get socket file descriptor
+    *server_socket = socket(PF_INET, SOCK_STREAM, 0);
+ 
+    // Set up socket so can re-use address
+    int socket_option = 1;
+    if(setsockopt(*server_socket, SOL_SOCKET, SO_REUSEADDR, &socket_option, sizeof(socket_option)) == -1){
+        error("Could not set socket option\n");
+    }
+ 
+    // Set server address structure 
+    struct sockaddr_in server_address;
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_family = AF_INET; //internet domain
+    server_address.sin_addr.s_addr = INADDR_ANY; 
+    server_address.sin_port = htons(port); //use host to network so that encoding is correct (big vs little endian)
+ 
+    // bind to socket to associate it with port
+    if(bind(*server_socket, (struct sockaddr *) &server_address, sizeof(server_address)) == -1){
+        close(*server_socket);
+        error("Could not bind to port\n");
+    }
+ 
+    // Start listening. Accept as many as BACKLOG connections
+    if(listen(*server_socket, BACKLOG) == -1){
+        error("Listen failed\n");
+    }
 
-	// this sets up structures like servinfo for later use
-	//servinfo now points to linked list of addrinfos which contain port number,IP address about the host
-	if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
-		error("Could not getaddrinfo\n");
-	}
-
-	// loop through all the results and bind to the first we can
-	for(p = servinfo; p != NULL; p = p->ai_next) {
-		// get socket file descriptor using information that we gained in getaddrinfo
-		// 
-		if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-			perror("server: socket");
-			continue;
-		}
-
-		// set sockopt -- NEED to read more about what this function does
-		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-				sizeof(int)) == -1) {
-			perror("setsockopt");
-			exit(1);
-		}
-
-		// once you have socket, need to associate it with port on machine
-		// ai_addr contains info about port numbers
-		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-			close(sockfd);
-			perror("server: bind");
-			continue;
-		}
-
-		break;
-	}
-
-	// done with using servinfo to connect
-	freeaddrinfo(servinfo); // all done with this structure
-
-	if (p == NULL)  {
-		error("Server failed to bind \n");
-	}
-
-	//listen: incoming connections go into queue until you accept them
-	if (listen(sockfd, BACKLOG) == -1) {
-		error("Server failed to listen\n");
-	}
-
-	// registering the  SIGCHLD handler
+    // registering the SIGCHLD handler to reap children processes when they exit
+    struct sigaction sa;
 	sa.sa_handler = sigchld_handler; // reap all dead processes
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART;
-	//handle SIGCHLD, which is signal that child sends to parent when it terminates
-	// child should terminate upon closed connection
+
+	// handle SIGCHLD, which is signal that child sends to parent when it terminates
 	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
 		perror("sigaction");
 		exit(1);
 	}
+ 
+    // initializing client socket variables
+    struct sockaddr_in client_address;
+    size_t client_address_length = sizeof(client_address);
+    int client_socket;
+ 
+    // Server continues to accept connections until Ctrl+C is pressed
+    while (1) {
+        // Accept the client socket.
+        client_socket = accept(*server_socket, (struct sockaddr *) &client_address, (socklen_t *) &client_address_length);
+        if(client_socket == -1){
+            error("Refused to accept connection\n");
+        }
 
-	signal(SIGINT, exit_signal_handler);
+        // create child process to handle request and let parent continue to listen for new connections
+        if(!fork()){
+            close(*server_socket);
+            
+            // function to send response
+            handle_client(client_socket);
+            close(client_socket);
+            exit(0);
+        }
+        
+        close(client_socket);
+    }
+ 
+    // Shut down the server.
+    shutdown(*server_socket, SHUT_RDWR);
+    close(*server_socket);
+}
 
-	printf("server: waiting for connections...\n");
 
-	while(1) {  // main accept() loop
+int main(int argc, char **argv) {
 
-		//accept command - client calls connect() to your machine on port you are listening on
-		// their connection goes into queue and waits for acceptance
-		// accept gets pending connection and returns new file descriptor to use for this connection
-		sin_size = sizeof their_addr;
-		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-		if (new_fd == -1) {
-			perror("accept");
-			continue;
-		}
+    if(argc !=2){
+        error("Incorrect number of arguments\t Correct format: ./server [PORTNO]\n");
+    }
+    int port = atoi(argv[1]);
 
-		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-		printf("server: got connection from %s\n", s);
-
-		// in child process, fork returns zero
-		// we fork process
-		//fork command: after fork syscall, both parent and child will execute code immediately following fork
-
-		if (!fork()) { // this is the child process
-		//use recv inside here
-			close(sockfd); // child doesn't need the listener
-
-			// buffer to store user input in
-			char recvbuf[REQUEST_SIZE];
-			bzero(recvbuf, REQUEST_SIZE);
-
-			//recv returns -1 on error, 0 if closed connection, or number of bytes read into buffer
-			if(recv(new_fd, recvbuf, REQUEST_SIZE, 0) < 0){
-				error("Recieve failed\n");
-			}
-
-			printf("SERVER RECIEVED: %s\n", recvbuf);
-
-			// default content for header
-			
-			char status[STATUS_SIZE];
-			bzero(status, STATUS_SIZE);
-			strcpy(status, " 200 OK\r\n");
-
-			char content_length[STATUS_SIZE];
-			bzero(content_length, STATUS_SIZE);
-			strcpy(content_length, "Content-Length: ");
-
-			char content_type[STATUS_SIZE];
-			bzero(content_type, STATUS_SIZE);
-			strcpy(content_type, "Content-Type: ");
-
-			char* parsed_commands[3]; // [[method],[url],[http version], [connection]]
-
-			int input_valid = parse_commands(recvbuf, parsed_commands, status);
-
-			if(input_valid == -1){
-				// send http stuff immediately and exit
-				strcat(content_type, "\r\n");
-				strcat(content_length, "\r\n\r\n");
-				send_all(new_fd, status, STATUS_SIZE);
-				send_all(new_fd, content_type, STATUS_SIZE);
-				send_all(new_fd, content_length, STATUS_SIZE);
-			}
-			else{
-				char pathname[COMMAND_LINE_SIZE];
-				bzero(pathname, COMMAND_LINE_SIZE);
-				strcpy(pathname, "www");
-				strcat(pathname, parsed_commands[1]);
-
-				int file_valid = get_error_status_file(pathname, status);
-
-				if(file_valid == -1){
-					// just send header content
-					strcat(content_type, "\r\n");
-					strcat(content_length, "\r\n\r\n");
-					send_all(new_fd, parsed_commands[2], 9);
-					send_all(new_fd, status, STATUS_SIZE);
-					send_all(new_fd, content_type, STATUS_SIZE);
-					send_all(new_fd, content_length, STATUS_SIZE);
-				}
-				else{
-					// sending file header
-					// add in keep alive logic
-					int file_length = get_file_header_info(pathname, content_length, content_type, parsed_commands[1], status);
-					send_all(new_fd, parsed_commands[2], 9);
-					send_all(new_fd, status, STATUS_SIZE);
-					send_all(new_fd, content_type, STATUS_SIZE);
-					send_all(new_fd, content_length, STATUS_SIZE);
-					
-					// send file content
-					int num_sends = file_length/FILE_SIZE_PART  + ((file_length % FILE_SIZE_PART) != 0); //taking the ceiling of this
-					char file_contents[FILE_SIZE_PART];
-					
-					FILE* fp = fopen(pathname, "r");
-					for(int i=0; i < num_sends; i++){
-						bzero(file_contents, FILE_SIZE_PART);
-						int n = fread(file_contents, FILE_SIZE_PART, 1, fp);
-						if(n < 0){
-							error("Error on reading file into buffer\n");
-						}
-						if(i == num_sends-1){
-							send_all(new_fd, file_contents, file_length % FILE_SIZE_PART);
-						}
-						else{
-							send_all(new_fd, file_contents, FILE_SIZE_PART);
-						}
-						
-					
-					}
-					fclose(fp);
-
-				}
-			}
-				
-			close(new_fd);
-			exit(0);
-
-		}
-		close(new_fd);  // parent doesn't need this because it is listening for new connections
-		//in parent continue listening to new connections
-	}
-
-	return 0;
+    // if user types Ctrl+C, server shuts down
+    signal(SIGINT, exit_handler);
+    start_server(&server_fd, port);
 }
