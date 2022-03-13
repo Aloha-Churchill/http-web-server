@@ -1,11 +1,11 @@
 COMPILER=gcc
 FLAGS=-g -Wall
 
-run: server
-	./server 8888
+run: serverexample
+	./serverexample
 
-all: server.c
-	$(COMPILER) $(FLAGS) -o server server.c
+all: serverexample.c
+	$(COMPILER) $(FLAGS) -o serverexample serverexample.c
 
 clean:
-	rm server
+	rm serverexample

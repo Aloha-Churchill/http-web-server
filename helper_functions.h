@@ -83,17 +83,10 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 		if(num_input_strings < 3){
 			parsed_commands[num_input_strings] = element;
 		}
-		/*
-		if(num_input_strings == 6){
-			parsed_commands[3] = element;
-		}
-		*/
 		printf("%d pc: %s\n", num_input_strings, element);
 		element = strtok(NULL, delimiters);
 		num_input_strings += 1;
 	}
-
-
 
 	char http_version_buf[9];
 	bzero(http_version_buf, 9);
@@ -143,7 +136,7 @@ int parse_commands(char* recvbuf, char* parsed_commands[], char* status){
 
 // wrapper function for send
 int send_all(int fd, char* send_buf, int size){
-	int n;
+	int n = -1;
 
 	n = send(fd, send_buf, size, 0);
 	if(n < 0){
@@ -155,9 +148,7 @@ int send_all(int fd, char* send_buf, int size){
 			n += send(fd, send_buf + n, size - n, 0);
 		}
 	}
-
 	return n;	
-	
 }
 
 
