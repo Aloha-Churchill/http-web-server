@@ -62,7 +62,7 @@ int send_all(int fd, char* send_buf, int size){
 
 	n = send(fd, send_buf, size, 0);
 	if(n < 0){
-		error("Send failed\n");
+		error("Send failed\n"); 
 	}
 
 	if(n != size){

@@ -28,11 +28,7 @@ void handle_client(int fd) {
     if(check_request(fd, parsed_commands, num_parsed) != -1){
 
         //create full path name
-	//if user enters /, then send index.html
         if(strncmp(parsed_commands[1], "/", 1) == 0 && strlen(parsed_commands[1]) == 1){
-            strcpy(pathname, "www/index.html");
-        }
-        else{
             strcpy(pathname, "www");
             strcat(pathname, parsed_commands[1]);
         }
@@ -40,7 +36,7 @@ void handle_client(int fd) {
         // check if file is valid, if so, then we send the file
         if(check_file(fd, pathname, parsed_commands[2]) != -1){
             send_file(fd, pathname, parsed_commands[2]);
-        }  
+        } 
     }
 
 }
@@ -106,6 +102,7 @@ void start_server(int *server_socket, int port) {
 
         // create child process to handle request and let parent continue to listen for new connections
         if(!fork()){
+            
             close(*server_socket);
             
             // function to send response
