@@ -29,6 +29,9 @@ void handle_client(int fd) {
 
         //create full path name
         if(strncmp(parsed_commands[1], "/", 1) == 0 && strlen(parsed_commands[1]) == 1){
+            strcpy(pathname, "www/index.html");    
+        }
+        else{
             strcpy(pathname, "www");
             strcat(pathname, parsed_commands[1]);
         }
